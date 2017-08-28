@@ -1,0 +1,95 @@
+
+// We will use Advanced Custom Fields Plugin to create username checkboxes.
+
+// Create new field of type checkbox with blank choices using Advanced Custom Fields Plugin.
+
+// Paste below code in functions.php to dynamically generate usernames as checkbox choices.
+
+function get_users_list( $field ) {
+	
+	$field['choices'] = array();
+
+	 $users = get_users( array( 'fields' => array( 'display_name' ) ) );
+		
+			foreach ( $users as $user ) {
+				
+				$choices[$user->display_name] = $user->display_name;			
+			}	
+	$field['choices'] = $choices;		
+	wp_reset_postdata();	
+	return $field;
+}
+add_filter('acf/load_field/name=your_field_name', 'get_users_list');
+
+// Change your_field_name with your created checkbox field name
+
+// Now we'll get posts and pages id allowed for current logged in user
+
+// I'm using separate functions and you can do this for custom post types as well
+
+// Paste below code in functions.php
+
+//For Pages
+
+function pages() {
+    $query = new WP_Query( array( 'post_type' => 'page', ) );
+ global $page_ids;
+ $page_ids = [];
+   $current_user = wp_get_current_user();
+  $user = $current_user->display_name;
+ while( $query->have_posts() ) : $query->the_post();
+
+  $users = get_field('grant_user_access', get_the_ID());
+  if( $users && in_array($user, $users) ):
+   array_push($page_ids, get_the_ID());
+   endif;
+
+ endwhile; 
+ }
+add_action( 'init', 'pages' );
+
+// For Posts
+
+function posts() {
+
+    $query = new WP_Query( array( 'post_type' => 'post', ) );
+ global $post_ids;
+ $post_ids = [];
+   $current_user = wp_get_current_user();
+  $user = $current_user->display_name;
+ while( $query->have_posts() ) : $query->the_post();
+  
+$users = get_field('grant_user_access', get_the_ID());
+  if( $users && in_array($user, $users) ):
+   array_push($post_ids, get_the_ID());
+   endif;
+
+ endwhile;
+ }
+add_action( 'init', 'posts' );
+
+
+// Now paste below code to display only those pages which are allowed to current user by admin
+
+function shyk_exclude_pages_from_admin($query) {
+ 
+  if ( ! is_admin() )
+    return $query;
+
+  global $pagenow, $post_type, $post_ids, $page_ids;
+ 
+ if ( !current_user_can( 'administrator' ) && $pagenow == 'edit.php' && $post_type == 'post' ) :
+    if($post_ids):
+    $query->query_vars['post__in'] = $post_ids;
+    else:  
+    $query->query_vars['post__in'] = array(0);
+    endif;
+
+  elseif ( !current_user_can( 'administrator' ) && $pagenow == 'edit.php' && $post_type == 'page' ) :
+    if($page_ids):
+    $query->query_vars['post__in'] = $page_ids;
+    else:
+    $query->query_vars['post__in'] = array(0);
+  endif;
+}
+add_filter( 'parse_query', 'shyk_exclude_pages_from_admin' );
